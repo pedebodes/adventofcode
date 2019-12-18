@@ -1,275 +1,232 @@
 #!/usr/bin/env python3
-import sys,math,numpy
-from itertools import permutations 
 
-def getDirn(robx,roby,dirn,space):
-    dx= 0
-    dy= 0
-    (maxx,maxy)=space.shape
-    #1=N,2=E,3=S,4=W
-    if (dirn == 1 or dirn == 3):
-        if robx > 0 and (space[robx-1][roby]) == ord('#'):
-            if dirn == 1:
-                return (4,'L',-1,0)
-            else:
-                return (4,'R',-1,0)
-        if robx < maxx-1 and (space[robx+1][roby]) == ord('#'):
-            if dirn == 3:
-                return (2,'L',1,0)
-            else:
-                return (2,'R',1,0)
-    if (dirn == 2 or dirn == 4):
-        if roby > 0 and (space[robx][roby-1]) == ord('#'):
-            if dirn == 2:
-                return (1,'L',0,-1)
-            else:
-                return (1,'R',0,-1)
-        if roby < maxy-1 and (space[robx][roby+1]) == ord('#'):
-            if dirn == 4:
-                return (3,'L',0,1)
-            else:
-                return (3,'R',0,1)
-    return (0,0,0,0)
+from os import path
+from collections import defaultdict
+import re
 
-def isscaffold(c):
-    if c==ord('#'):
-        return True
-    if c==ord('^'):
-        return True
-    if c==ord('<'):
-        return True
-    if c==ord('>'):
-        return True
-    if c==ord('v'):
-        return True
-    return False
+POSITION = 0
+IMMEDIATE = 1
+RELATIVE = 2
 
-def parseSpace(out):
-    width= 0
-    for o in out:
-        if o == 10:
-            break
-        width+= 1
-    height=0
-    w= 0
-    for o in out:
-        if o == 10:
-            w=0
-            height+=1
-        else:
-            w+=1
-    height-=1
-    space=numpy.empty((width,height),dtype=int)
-    x=0
-    y=0
-    for o in out:
-        if o == 10:
-            x=0
-            y+=1
-            continue
-        if (y >= height):
-            break
-        space[x][y]=o
-        x+=1
-    return space
+ADD = 1
+MUL = 2
+IN = 3
+OUT = 4
+JUMP_TRUE = 5
+JUMP_FALSE = 6
+LESS_THAN = 7
+EQUALS = 8
+ADD_RELATIVE_BASE = 9
+HALT = 99
 
-def calcVal(s,pos,mode,rbase):
-    if mode == 0:
-        return s[s[pos]]
-    if mode == 1:
-        return s[pos]
-    if mode == 2:
-        return s[rbase+s[pos]]
-    print("Unknown mode",mode)
-    sys.exit()
+READ = 0
+WRITE = 1
 
-def putVal(s,pos,mode,rbase,val):
-    if mode == 0:
-        s[s[pos]]= val
-        return
-    if mode == 1:
-        print("Mode 1 put should not happen")
-        s[pos]= val
-    if mode == 2:
-        #print("Mode 2 put should not happen")
-        s[rbase+s[pos]]= val
-        return
-    print("Unknown mode",mode)
-    sys.exit()
+OPS = {
+    ADD: (READ, READ, WRITE),
+    MUL: (READ, READ, WRITE),
+    IN: (WRITE,),
+    OUT: (READ,),
+    JUMP_TRUE: (READ, READ),
+    JUMP_FALSE: (READ, READ),
+    LESS_THAN: (READ, READ, WRITE),
+    EQUALS: (READ, READ, WRITE),
+    ADD_RELATIVE_BASE: (READ,),
+    HALT: (),
+}
 
-def doMachine(s,inp):
-    output= []
-    pos=0
-    rbase=0
-    while(True):
-        instr=s[pos]%100
-        mode1= (int(s[pos]/100))%10
-        mode2= (int(s[pos]/1000))%10
-        mode3= (int(s[pos]/10000))%10
-        #print(pos,s[pos],instr,mode1,mode2,mode3)
-        if (instr == 99):
-            return output
-        elif (instr == 1): #add
-            x=calcVal(s,pos+1,mode1,rbase)
-            y=calcVal(s,pos+2,mode2,rbase)
-            putVal(s,pos+3,mode3,rbase,x+y)            
-            pos+=4
-        elif (instr == 2): #mult
-            x=calcVal(s,pos+1,mode1,rbase)
-            y=calcVal(s,pos+2,mode2,rbase)
-            putVal(s,pos+3,mode3,rbase,x*y)            
-            pos+=4
-                #print("Mult",res)
-        elif (instr == 3): #input
-            #printScreen(output)
-            #print("INPUT")
-            i=inp.pop(0)
-            #print(i)
-            putVal(s,pos+1,mode1,rbase,i)
-            pos+=2
-        elif (instr == 4): #output
-#0=unknown
-#1=empty
-#2=wall
-#3=O2
-            out=calcVal(s,pos+1,mode1,rbase)
 
-            output.append(out)
-            pos+= 2
-        elif (instr == 5): 
-            x=calcVal(s,pos+1,mode1,rbase)
-            y=calcVal(s,pos+2,mode2,rbase)
-            if (x != 0):
-                pos= y
+class VM:
+    def __init__(self, code):
+        self.mem = list(code)
+        self.ip = 0
+        self.relative_base = 0
+        self.gen = self.__run()
+
+    def __getitem__(self, index):
+        return self.mem[index]
+
+    def __setitem__(self, index, val):
+        self.mem[index] = val
+
+    def get_args(self, arg_kinds, modes):
+        args = [None] * 4
+
+        for i, kind in enumerate(arg_kinds):
+            a = self[self.ip + 1 + i]
+            mode = modes % 10
+            modes //= 10
+
+            if mode == RELATIVE:
+                a += self.relative_base
+
+            if mode in (POSITION, RELATIVE):
+                if a < 0:
+                    raise Exception(f"Invalid access to negative memory index: {a}")
+                elif a >= len(self.mem):
+                    self.mem += [0] * (a + 1 - len(self.mem))
+
+                if kind == READ:
+                    a = self[a]
+                elif kind != WRITE:
+                    raise Exception(f"Invalid arg kind: {kind}")
+
+            elif mode == IMMEDIATE:
+                if kind == WRITE:
+                    raise Exception(f"Invalid arg mode for write arg: {mode}")
             else:
-                pos+=3
-        elif (instr == 6):
-            x=calcVal(s,pos+1,mode1,rbase)
-            y=calcVal(s,pos+2,mode2,rbase)
-            if (x == 0):
-                pos= y
+                raise Exception(f"Invalid arg mode: {mode}")
+
+            args[i] = a
+
+        return args
+
+    def __run(self):
+        out = []
+
+        while self[self.ip] != HALT:
+            instr = self[self.ip]
+            op = instr % 100
+            modes = instr // 100
+
+            if op not in OPS:
+                raise Exception(f"Unknown opcode: {op}")
+
+            arg_kinds = OPS[op]
+            a, b, c, d = self.get_args(arg_kinds, modes)
+            self.ip += 1 + len(arg_kinds)
+
+            if op == IN:
+                self[a] = (yield out)
+                out.clear()
+            elif op == OUT:
+                out.append(a)
+            elif op == ADD:
+                self[c] = a + b
+            elif op == MUL:
+                self[c] = a * b
+            elif op == LESS_THAN:
+                self[c] = 1 if a < b else 0
+            elif op == EQUALS:
+                self[c] = 1 if a == b else 0
+            elif op == JUMP_TRUE:
+                if a != 0:
+                    self.ip = b
+            elif op == JUMP_FALSE:
+                if a == 0:
+                    self.ip = b
+            elif op == ADD_RELATIVE_BASE:
+                self.relative_base += a
             else:
-                pos+=3
-        elif (instr == 7):
-            x=calcVal(s,pos+1,mode1,rbase)
-            y=calcVal(s,pos+2,mode2,rbase)
-            if (x < y):
-                putVal(s,pos+3,mode3,rbase,1)        
-            else:
-                putVal(s,pos+3,mode3,rbase,0)        
-            pos+=4
-        elif (instr == 8):
-            x=calcVal(s,pos+1,mode1,rbase)
-            y=calcVal(s,pos+2,mode2,rbase)
-            if (x == y):
-                putVal(s,pos+3,mode3,rbase,1)        
-            else:
-                putVal(s,pos+3,mode3,rbase,0)        
-            pos+=4
-        elif (instr == 9):
-            rbase+=calcVal(s,pos+1,mode1,rbase)
-            #print("rbase=",rbase)
-            pos+=2
-        else:
-            print("Did not expect ",s[pos])
-            sys.exit()
-    return(output,xpos,ypos)
-    #print(s)
-    #print("Part 1",s[0])
+                raise Exception(f"Unimplemented opcode: {op}")
+
+        return out
+
+    def run(self, inp=None):
+        try:
+            return self.gen.send(inp)
+        except StopIteration as e:
+            return e.value
     
-fp= open("input.txt","r")
-l= fp.readline()
-fp.close()
-s=[]
-for string in l.split(","):
-    s.append(int(string))
-#print(s)
-#OK, fix size assumptions not ideal but quick
-for i in range(10000):
-    s.append(0)
-sc=s.copy()
-out=doMachine(s,[])
-#print(out)
 
-space=parseSpace(out)
-(maxx,maxy)=space.shape
-tot= 0
-for i in range(1,maxx-1):
-    for j in range(1,maxy-1):
-        if isscaffold(space[i][j]) and \
-            isscaffold(space[i-1][j]) and \
-            isscaffold(space[i+1][j]) and \
-            isscaffold(space[i][j-1]) and \
-            isscaffold(space[i][j+1]):
-            tot+= i*j
-print("Part 1",tot)
-#print(space)
-for j in range(0,maxy):
-    for i in range(0,maxx):
-        print(str(chr(space[i][j])),end="")
-    print()
-robx=-1
-roby=-1
-for j in range(0,maxy):
-    for i in range(0,maxx):
-        if(space[i][j] == ord('^')):
-            robx=i
-            roby=j
-            break
-    if (robx >= 0):
-        break
-dirn=1
-#1=N,2=E,3=S,4=W
-dirs=[]
-x=robx
-y=roby
-while True:
-    (dirn,turn,dx,dy)=getDirn(x,y,dirn,space)
-    if(dirn == 0):
-        break
-    #print(dirn,turn,dx,dy)
-    dist=0
-    while True:
-        if (x+dx) >= 0 and x+dx < maxx and y+dy >=0 and y+dy < maxy \
-        and space[x+dx][y+dy] == ord('#'):
-            x+=dx
-            y+=dy
-            dist+=1
+NEWLINE = ord("\n")
+DX = (0, 1, 0, -1)
+DY = (-1, 0, 1, 0)
+
+with open(path.join(path.dirname(__file__), "input.txt")) as f:
+    code = list(map(int, f.readline().strip().split(",")))
+    code[0] = 2
+    vm = VM(code)
+    m = defaultdict(int)
+
+    x, y = 0, 0
+    for c in vm.run():
+        if c == NEWLINE:
+            x = 0
+            y += 1
         else:
-            break
-    dirs.append((turn,dist))
-#print(dirs)
-acode="R,6,L,8,R,8"
-bcode="R,4,R,6,R,6,R,4,R,4"
-ccode="L,8,R,6,L,10,L,10"
-mcode="A,A,B,C,B,C,B,C,A,C"
-inp=[]
-for i in range(len(mcode)):
-#    print(ord(code[i]))
-    inp.append(ord(mcode[i]))
-inp.append(10)
-for i in range(len(acode)):
-#    print(ord(code[i]))
-    inp.append(ord(acode[i]))
-inp.append(10)
-for i in range(len(bcode)):
-#    print(ord(code[i]))
-    inp.append(ord(bcode[i]))
-inp.append(10)
-for i in range(len(ccode)):
-#    print(ord(code[i]))
-    inp.append(ord(ccode[i]))
-inp.append(10)
+            c = chr(c)
+            m[(x, y)] = c
+            if c in ("v", "^", "<", ">"):
+                robot = (x, y)
+            x += 1
 
-inp.append(ord('n'))
-inp.append(10)
-sc[0]=2
-out=doMachine(sc,inp)
-#print(out)
-space=parseSpace(out)
-(maxx,maxy)=space.shape
-for j in range(0,maxy):
-    for i in range(0,maxx):
-        print(str(chr(space[i][j])),end="")
-    print()
-print(out[-1])
+    total = 0
+
+    for x, y in [k for (k, v) in m.items() if v == "#"]:
+        a = m[(x + 1, y)] == "#"
+        b = m[(x - 1, y)] == "#"
+        c = m[(x, y + 1)] == "#"
+        d = m[(x, y - 1)] == "#"
+
+        if a + b + c + d >= 3:
+            total += x * y
+
+    print("Part 1:", total)
+
+    x, y = robot
+    d = ("^", ">", "v", "<").index(m[robot])
+    commands = []
+
+    while True:
+        nx = x + DX[d]
+        ny = y + DY[d]
+        if m[(nx, ny)] == "#":
+            if commands and commands[-1] not in ("R", "L"):
+                commands[-1] += 1
+            else:
+                commands.append(1)
+            x, y = nx, ny
+            continue
+
+        d = (d + 1) % 4
+        if m[(x + DX[d], y + DY[d])] == "#":
+            commands.append("R")
+            continue
+
+        d = (d + 2) % 4
+        if m[(x + DX[d], y + DY[d])] == "#":
+            commands.append("L")
+            continue
+
+        break
+
+    commands = ",".join(map(str, commands)) + ","
+    match = re.match(r"^(.{1,21})\1*(.{1,21})(?:\1|\2)*(.{1,21})(?:\1|\2|\3)*$", commands)
+    fa = match.group(1)
+    fb = match.group(2)
+    fc = match.group(3)
+    funcs = []
+    while commands:
+        if commands.startswith(fa):
+            funcs.append("A")
+            commands = commands[len(fa):]
+        elif commands.startswith(fb):
+            funcs.append("B")
+            commands = commands[len(fb):]
+        elif commands.startswith(fc):
+            funcs.append("C")
+            commands = commands[len(fc):]
+        else:
+            assert False
+
+    for c in ",".join(funcs):
+        vm.run(ord(c))
+    vm.run(NEWLINE)
+
+    for c in fa[:-1]:
+        vm.run(ord(c))
+    vm.run(NEWLINE)
+
+    for c in fb[:-1]:
+        vm.run(ord(c))
+    vm.run(NEWLINE)
+
+    for c in fc[:-1]:
+        vm.run(ord(c))
+    vm.run(NEWLINE)
+
+    vm.run(ord("n"))
+    out = vm.run(NEWLINE)[-1]
+
+    print("Part 2:", out)
