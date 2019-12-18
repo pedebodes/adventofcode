@@ -3,8 +3,8 @@ package main
 import "fmt"
 
 func main() {
-	fmt.Println("Part 1", totalFuelRequired(modules, basicFuelRequired))
-	fmt.Println("Part 1", totalFuelRequired(modules, cumulativeFuelRequired))
+	fmt.Println("Parte 1", totalFuelRequired(modules, basicFuelRequired))
+	fmt.Println("Parte 2", totalFuelRequired(modules, cumulativeFuelRequired))
 }
 
 func basicFuelRequired(mass int64) int64 {

@@ -96,22 +96,17 @@ func calculateDistance(wire1 []string, wire2 []string) int {
 	var occupied1, occupied2 []Coordinate
 	start := Coordinate{X: 0, Y: 0}
 
-	// occupied by wire1
 	occupied1 = visitedBy(start, wire1)
 
-	// occupied by wire2
 	occupied2 = visitedBy(start, wire2)
 
-	// find duplicates
 	crosses := findDuplicates(occupied1, occupied2)
 
-	// distance for all duplicates
 	var distances []int
 	for _, x := range crosses {
 		distances = append(distances, manhattenDistance(start, x))
 	}
 
-	// return smallest
 	sort.Ints(distances)
 	return distances[0]
 }
@@ -120,30 +115,27 @@ func calculateSteps(wire1 []string, wire2 []string) int {
 	var occupied1, occupied2 []Coordinate
 	start := Coordinate{X: 0, Y: 0}
 
-	// occupied by wire1
 	occupied1 = visitedBy(start, wire1)
 
-	// occupied by wire2
 	occupied2 = visitedBy(start, wire2)
 
-	// find stepCount for all duplicates
 	crosses := findDuplicates2(occupied1, occupied2)
 
-	// return smallest
 	sort.Ints(crosses)
 	return crosses[0]
 }
 
 func main() {
-	file, _ := ioutil.ReadFile("input3.txt")
+	file, _ := ioutil.ReadFile("inputs/input3.txt")
 	wires := strings.Split(string(file), "\n")[0:2]
 	wire1 := strings.Split(wires[0], ",")
 	wire2 := strings.Split(wires[1], ",")
 
 	distance := calculateDistance(wire1, wire2)
-	fmt.Printf("Solution to part 1 is %d\n", distance)
+	fmt.Printf("Parte 1: %d\n", distance)
 
 	steps := calculateSteps(wire1, wire2)
-	fmt.Printf("Solution to part 2 is %d\n", steps)
+	fmt.Printf("Parte 2: %d\n", steps)
 
 }
+

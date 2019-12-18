@@ -8,4 +8,32 @@ services:
     working_dir: /go/src/go-with-compose
     # command: go run day01.go
     # command: go run day02.go
-    command: go run day03.go
+    # command: go run day03.go
+    # command: go run day04.go
+    # command: go run day05.go
+    # command: go run day06.go
+    # command: go run day07.go
+    # command: go run day08.go
+    # command: go run day09.go
+    # command: go run day10.go
+    # command: go run day11.go
+    # command: go run day12.go
+    command: go run day13.go
+    # command: go run day14.go
+    # command: go run day15.go
+    # command: go run day16.go
+    # command: go run day17.go
+    # command: go run day18.go
+    # command: go run day19.go
+    # command: go run day20.go
+    # command: go run day21.go
+    # command: go run day22.go
+    # command: go run day23.go
+    # command: go run day24.go
+    # command: go run day25.go
+
+
+
+
+# para executar 
+# docker-compose up

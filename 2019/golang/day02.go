@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	file, _ := os.Open("input2.txt")
+	file, _ := os.Open("inputs/input2.txt")
 	defer file.Close()
 
 	text, _ := ioutil.ReadAll(file)
@@ -53,7 +53,7 @@ func part1(memory []int) {
 
 	run(workingMemory)
 
-	fmt.Printf("Part 1: %d\n", workingMemory[0])
+	fmt.Printf("Parte 1: %d\n", workingMemory[0])
 }
 
 func part2(memory []int, expectedSolution int) {
@@ -69,7 +69,7 @@ func part2(memory []int, expectedSolution int) {
 			run(workingMemory)
 
 			if workingMemory[0] == expectedSolution {
-				fmt.Printf("Part 2: %d \n", 100*noun+verb)
+				fmt.Printf("Parte 2: %d \n", 100*noun+verb)
 			}
 		}
 	}
