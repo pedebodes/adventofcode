@@ -1,5 +1,0 @@
-== Day 8 in Python
-
-++++
-include::AOC-2019-08.html[]
-++++
