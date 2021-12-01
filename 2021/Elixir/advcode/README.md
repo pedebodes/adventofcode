@@ -3,9 +3,6 @@
 
 [Official site](https://adventofcode.com/), 
 
-the package can be installed
-by adding `advcode` to your list of dependencies in `mix.exs`:
-
 How to use, comands
 ```elixir
 asdf install
