@@ -11,11 +11,11 @@ mix deps.get
 ```
 Execute on terminal
 iex -S mix 
-Day* part* 
+Day*.part* 
 for example:
 ```elixir
 iex -S mix 
-Day1 part1
+Day1.part1
 
 ```
 
